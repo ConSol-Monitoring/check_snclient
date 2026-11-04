@@ -91,6 +91,9 @@ Description:
   check_snclient is a REST client for the NSClient++/SNClient webserver for querying
   and receiving check information over HTTP(S).
 
+Version:
+  check_snclient vX.Y.Z
+
 Example:
   connectivity check (parent service):
   check_snclient -p "password" -u "https://<SERVER>:8443"
@@ -110,6 +113,7 @@ Options:
   -a <api version>         API version of SNClient/NSClient++ (legacy or 1) Default: legacy
   -l <username>            REST webserver login. Default: admin
   -p <password>            REST webserver password
+  -proxy <url>             Proxy URL or "env" (see Go net/http proxy documentation)
   -config <file>           Path to config file
 
 TLS/SSL Options:
@@ -120,6 +124,25 @@ TLS/SSL Options:
   -tlsmin <string>         Minimum tls version used to connect. Default: tls1.0
   -tlshostname <string>    Use this servername when verifying tls server name
   -k                       Insecure mode - skip TLS verification
+
+Environment Variables:
+  Command line options take predence over environment variables.
+
+  check_snclient_password    REST webserver password
+  CHECK_SNCLIENT_PASSWORD
+  check_snclient_login       REST webserver login
+  CHECK_SNCLIENT_LOGIN
+  check_snclient_timeout     Connection timeout in seconds
+                             Optional set timeout state: 0-3 or OK, WARNING, CRITICAL, UNKNOWN
+                             (default timeout state is UNKNOWN)
+  CHECK_SNCLIENT_TIMEOUT
+  check_snclient_proxy       Proxy URL or "env" (see Go net/http proxy documentation)
+  CHECK_SNCLIENT_PROXY
+  check_snclient_proxy_url
+  CHECK_SNCLIENT_PROXY_URL
+
+  The old check_nsc_web_* / CHECK_NSC_WEB_* variables are deprecated
+  but still supported for backwards compatibility.
 
 Output Options:
   -h                       Print help
