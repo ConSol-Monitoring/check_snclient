@@ -73,6 +73,7 @@ Options:
   -a <api version>         API version of SNClient/NSClient++ (legacy or 1) Default: legacy
   -l <username>            REST webserver login. Default: admin
   -p <password>            REST webserver password
+  -proxy <url>             Proxy URL or "env" (see Go net/http proxy documentation)
   -config <file>           Path to config file
 
 TLS/SSL Options:
@@ -95,6 +96,10 @@ Environment Variables:
                              Optional set timeout state: 0-3 or OK, WARNING, CRITICAL, UNKNOWN
                              (default timeout state is UNKNOWN)
   CHECK_SNCLIENT_TIMEOUT
+  check_snclient_proxy       Proxy URL or "env" (see Go net/http proxy documentation)
+  CHECK_SNCLIENT_PROXY
+  check_snclient_proxy_url
+  CHECK_SNCLIENT_PROXY_URL
 
   The old check_nsc_web_* / CHECK_NSC_WEB_* variables are deprecated
   but still supported for backwards compatibility.
@@ -193,6 +198,7 @@ type flagSet struct {
 	URL           string
 	Login         string
 	Password      string
+	Proxy         string
 	APIVersion    string
 	Timeout       string
 	ErrorExit     string
@@ -472,6 +478,11 @@ func parseEnvironmentVariables(flags *flagSet, env []string) {
 		case "check_snclient_timeout", "CHECK_SNCLIENT_TIMEOUT",
 			"check_nsc_web_timeout", "CHECK_NSC_WEB_TIMEOUT":
 			flags.Timeout = value
+		case "check_snclient_proxy", "CHECK_SNCLIENT_PROXY",
+			"check_snclient_proxy_url", "CHECK_SNCLIENT_PROXY_URL",
+			"check_nsc_web_proxy", "CHECK_NSC_WEB_PROXY",
+			"check_nsc_web_proxy_url", "CHECK_NSC_WEB_PROXY_URL":
+			flags.Proxy = value
 		}
 	}
 }
@@ -483,6 +494,7 @@ func parseFlagsAndEnvironment(osArgs, env []string, output io.Writer) (flags *fl
 	flagSet.StringVar(&flags.URL, "u", "", "SNClient URL, for example https://10.1.2.3:8443")
 	flagSet.StringVar(&flags.Login, "l", "admin", "SNClient webserver login")
 	flagSet.StringVar(&flags.Password, "p", "", "SNClient webserver password")
+	flagSet.StringVar(&flags.Proxy, "proxy", "", "Proxy URL or \"env\" (see Go net/http proxy documentation)")
 	flagSet.StringVar(&flags.APIVersion, "a", "legacy", "API version of SNClient (legacy or 1)")
 	flagSet.StringVar(&flags.Timeout, "t", "10:UNKNOWN", "Connection timeout in seconds")
 	flagSet.StringVar(&flags.ErrorExit, "e", "UNKNOWN", "Connection error exit code.")
@@ -735,8 +747,14 @@ func buildHTTPClient(output io.Writer, flags *flagSet, timeout time.Duration) (*
 		return nil, err
 	}
 
+	proxyFunc, err := getProxyFunc(flags.Proxy)
+	if err != nil {
+		return nil, err
+	}
+
 	hTransport := &http.Transport{
 		TLSClientConfig: tlsConfig,
+		Proxy:           proxyFunc,
 		DialContext: (&net.Dialer{
 			Timeout: timeout,
 		}).DialContext,
@@ -750,6 +768,37 @@ func buildHTTPClient(output io.Writer, flags *flagSet, timeout time.Duration) (*
 	}
 
 	return hClient, nil
+}
+
+func getProxyFunc(proxyStr string) (func(*http.Request) (*url.URL, error), error) {
+	if proxyStr == "" || strings.EqualFold(proxyStr, "none") || strings.EqualFold(proxyStr, "direct") {
+		return nil, nil
+	}
+
+	if strings.EqualFold(proxyStr, "env") {
+		return http.ProxyFromEnvironment, nil
+	}
+
+	if !strings.Contains(proxyStr, "://") {
+		proxyStr = "http://" + proxyStr
+	}
+
+	proxyURL, err := url.Parse(proxyStr)
+	if err != nil {
+		return nil, fmt.Errorf("invalid proxy url: %s", err.Error())
+	}
+
+	if proxyURL.Host == "" {
+		return nil, fmt.Errorf("invalid proxy url: missing host")
+	}
+
+	switch proxyURL.Scheme {
+	case "http", "https", "socks5":
+	default:
+		return nil, fmt.Errorf("unsupported proxy scheme: %s (only http, https and socks5 are supported)", proxyURL.Scheme)
+	}
+
+	return http.ProxyURL(proxyURL), nil
 }
 
 func extractResult(output io.Writer, flags *flagSet, contents []byte) (*queryV1, error) {
