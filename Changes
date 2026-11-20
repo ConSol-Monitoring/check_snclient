@@ -5,6 +5,7 @@ next:
           - add check_snclient_* / CHECK_SNCLIENT_* environment variables; the old check_nsc_web_* / CHECK_NSC_WEB_* variables are deprecated but still supported for backwards compatibility
           - send client timeout as X-Snclient-Timeout header; the legacy X-Nsc-Web-Timeout header is still sent for backwards compatibility
           - fix integer performance values being printed with fractions when using -f argument
+          - add -proxy flag and CHECK_SNCLIENT_PROXY environment variable
 
 0.7.6    Fri Apr 10 16:12:37 CEST 2026
           - minimum go version is now 1.26
